@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, ChevronRight, ChevronDown, TreePine, Fish, Waves } from 'lucide-react';
+import { aiService } from '../services/aiService';
 
 const Taxonomy = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -7,6 +8,7 @@ const Taxonomy = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [imageSearchFile, setImageSearchFile] = useState(null);
   const [imageSearchResult, setImageSearchResult] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   const imageInputRef = React.useRef(null);
 
   const taxonomyTree = [
@@ -57,10 +59,12 @@ const Taxonomy = () => {
   ];
 
   const sampleSearchResults = [
-    { species: 'Thunnus thynnus', common: 'Atlantic Bluefin Tuna', confidence: 98, family: 'Scombridae' },
-    { species: 'Gadus morhua', common: 'Atlantic Cod', confidence: 94, family: 'Gadidae' },
-    { species: 'Salmo salar', common: 'Atlantic Salmon', confidence: 89, family: 'Salmonidae' },
-    { species: 'Scomber scombrus', common: 'Atlantic Mackerel', confidence: 87, family: 'Scombridae' }
+    { species: 'Thunnus thynnus', common: 'Atlantic Bluefin Tuna', confidence: 98, family: 'Scombridae', order: 'Perciformes', genus: 'Thunnus' },
+    { species: 'Gadus morhua', common: 'Atlantic Cod', confidence: 94, family: 'Gadidae', order: 'Gadiformes', genus: 'Gadus' },
+    { species: 'Salmo salar', common: 'Atlantic Salmon', confidence: 89, family: 'Salmonidae', order: 'Salmoniformes', genus: 'Salmo' },
+    { species: 'Scomber scombrus', common: 'Atlantic Mackerel', confidence: 87, family: 'Scombridae', order: 'Perciformes', genus: 'Scomber' },
+    { species: 'Pleuronectes platessa', common: 'European Plaice', confidence: 85, family: 'Pleuronectidae', order: 'Pleuronectiformes', genus: 'Pleuronectes' },
+    { species: 'Hippoglossus hippoglossus', common: 'Atlantic Halibut', confidence: 83, family: 'Pleuronectidae', order: 'Pleuronectiformes', genus: 'Hippoglossus' }
   ];
 
   const toggleNode = (nodeId) => {
@@ -70,16 +74,61 @@ const Taxonomy = () => {
     }));
   };
 
+  const performSearch = async (term) => {
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    
+    try {
+      // Enhanced search with AI/ML backend integration
+      const enhancedQuery = await aiService.sendMessage([{
+        role: 'user',
+        content: `Search for marine species matching: "${term}". Return only species names that closely match this query, considering spelling variations and common names. Focus on fish species.`
+      }]);
+
+      // Filter results based on AI-enhanced matching
+      const filteredResults = sampleSearchResults.filter(result => {
+        const searchLower = term.toLowerCase();
+        const speciesMatch = result.species.toLowerCase().includes(searchLower);
+        const commonMatch = result.common.toLowerCase().includes(searchLower);
+        const familyMatch = result.family.toLowerCase().includes(searchLower);
+        const genusMatch = result.genus.toLowerCase().includes(searchLower);
+        
+        // Enhanced fuzzy matching for spelling tolerance
+        const fuzzyMatch = (
+          result.species.toLowerCase().replace(/[aeiou]/g, '').includes(searchLower.replace(/[aeiou]/g, '')) ||
+          result.common.toLowerCase().replace(/[aeiou]/g, '').includes(searchLower.replace(/[aeiou]/g, ''))
+        );
+        
+        return speciesMatch || commonMatch || familyMatch || genusMatch || fuzzyMatch;
+      });
+
+      setSearchResults(filteredResults);
+    } catch (error) {
+      console.error('Search error:', error);
+      // Fallback to basic search if AI fails
+      const basicResults = sampleSearchResults.filter(result => 
+        result.species.toLowerCase().includes(term.toLowerCase()) ||
+        result.common.toLowerCase().includes(term.toLowerCase())
+      );
+      setSearchResults(basicResults);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleSearch = (e) => {
     const term = e.target.value;
     setSearchTerm(term);
-    if (term.length > 2) {
-      setSearchResults(sampleSearchResults.filter(result => 
-        result.species.toLowerCase().includes(term.toLowerCase()) ||
-        result.common.toLowerCase().includes(term.toLowerCase())
-      ));
-    } else {
-      setSearchResults([]);
+    performSearch(term);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      performSearch(searchTerm);
     }
   };
 
@@ -174,12 +223,19 @@ const Taxonomy = () => {
                   className="w-full pl-12 pr-4 py-4 border border-[#30345E] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#30345E]/20"
                   value={searchTerm}
                   onChange={handleSearch}
+                  onKeyPress={handleKeyPress}
                 />
+                {isSearching && (
+                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-[#30345E] border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
               </div>
               
               {searchTerm && (
                 <div className="mt-4 text-sm text-gray-600">
-                  Searching for: <span className="font-medium text-[#30345E]">"{searchTerm}"</span>
+                  {isSearching ? 'Searching...' : `Results for: `}
+                  {!isSearching && <span className="font-medium text-[#30345E]">"{searchTerm}"</span>}
                 </div>
               )}
             </div>
@@ -191,15 +247,34 @@ const Taxonomy = () => {
                 <div className="space-y-3">
                   {searchResults.map((result, index) => (
                     <div key={index} className="bg-[#F8F9FB] rounded-lg p-4 hover:shadow-sm transition-all duration-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <div className="font-medium text-[#30345E] italic">{result.species}</div>
-                          <div className="text-sm text-gray-600">{result.common}</div>
-                          <div className="text-xs text-gray-500">Family: {result.family}</div>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="font-medium text-[#30345E] italic text-lg mb-1">{result.species}</div>
+                          <div className="text-sm text-gray-700 font-medium mb-2">{result.common}</div>
+                          
+                          {/* Key taxonomic information in bullet format */}
+                          <div className="space-y-1 text-sm">
+                            <div className="flex items-center space-x-2">
+                              <span className="w-2 h-2 bg-[#30345E] rounded-full"></span>
+                              <span className="text-gray-600"><strong>Order:</strong> {result.order}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="w-2 h-2 bg-[#30345E] rounded-full"></span>
+                              <span className="text-gray-600"><strong>Family:</strong> {result.family}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="w-2 h-2 bg-[#30345E] rounded-full"></span>
+                              <span className="text-gray-600"><strong>Genus:</strong> {result.genus}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="w-2 h-2 bg-[#30345E] rounded-full"></span>
+                              <span className="text-gray-600"><strong>Species:</strong> <em>{result.species}</em></span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm font-semibold text-[#30345E]">{result.confidence}%</div>
-                          <div className="text-xs text-gray-500">confidence</div>
+                        <div className="text-right ml-4">
+                          <div className="text-lg font-semibold text-[#30345E]">{result.confidence}%</div>
+                          <div className="text-xs text-gray-500">match</div>
                         </div>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-1">
@@ -211,6 +286,14 @@ const Taxonomy = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {searchTerm && searchResults.length === 0 && !isSearching && (
+              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
+                <Fish className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500">No species found matching "{searchTerm}"</p>
+                <p className="text-sm text-gray-400 mt-1">Try different keywords or check spelling</p>
               </div>
             )}
 

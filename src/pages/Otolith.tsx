@@ -5,7 +5,17 @@ const Otolith = () => {
   const [dragOver, setDragOver] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [analysisResults, setAnalysisResults] = useState(null);
+  const [pendingAnalysis, setPendingAnalysis] = useState(null);
   const fileInputRef = React.useRef(null);
+
+  // Simulated database of known otolith images
+  const knownOtoliths = [
+    'otolith_001.jpg',
+    'otolith_002.jpg', 
+    'otolith_004.jpg',
+    'cod_otolith_sample.jpg',
+    'tuna_otolith_ref.jpg'
+  ];
 
   const sampleResults = {
     species: "Atlantic Cod",
@@ -38,8 +48,22 @@ const Otolith = () => {
     setUploadedFiles(prev => [...prev, ...files]);
   };
 
-  const handleAnalyze = () => {
-    setAnalysisResults(sampleResults);
+  const handleAnalyze = (file) => {
+    // Check if the file exists in our database
+    const isKnownOtolith = knownOtoliths.some(known => 
+      file.name.toLowerCase().includes(known.toLowerCase().split('.')[0]) ||
+      known.toLowerCase().includes(file.name.toLowerCase().split('.')[0])
+    );
+
+    if (isKnownOtolith) {
+      // File exists in database - show analysis results
+      setAnalysisResults(sampleResults);
+      setPendingAnalysis(null);
+    } else {
+      // File not in database - show pending message
+      setPendingAnalysis(file.name);
+      setAnalysisResults(null);
+    }
   };
 
   const handleChooseFiles = () => {
@@ -130,7 +154,7 @@ Date: ${new Date().toLocaleDateString()}`;
                         <span className="text-sm font-medium text-[#1A1A1A]">{file.name}</span>
                       </div>
                       <button
-                        onClick={handleAnalyze}
+                        onClick={() => handleAnalyze(file)}
                         className="bg-[#30345E] text-white px-4 py-2 rounded-md text-sm hover:scale-105 transition-all duration-200 flex items-center space-x-2"
                       >
                         <Zap className="w-4 h-4" />
@@ -200,6 +224,36 @@ Date: ${new Date().toLocaleDateString()}`;
                     <Download className="w-4 h-4" />
                     <span>Download Report</span>
                   </button>
+                </div>
+              </div>
+            ) : pendingAnalysis ? (
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-yellow-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-[#30345E]">Analysis Pending</h3>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce"></div>
+                    <span className="text-sm text-yellow-600 font-medium">Under Review</span>
+                  </div>
+                </div>
+                
+                <div className="bg-yellow-50 rounded-lg p-4 mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <FileImage className="w-4 h-4 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-yellow-800">Image: {pendingAnalysis}</p>
+                      <p className="text-sm text-yellow-700">This otolith is not in our current database</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-center py-4">
+                  <h4 className="text-lg font-semibold text-[#30345E] mb-2">Our scientists will work on it</h4>
+                  <p className="text-gray-600 mb-4">We will notify you once the analysis is complete</p>
+                  <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+                    <span>Expected completion: 2-3 business days</span>
+                  </div>
                 </div>
               </div>
             ) : (
